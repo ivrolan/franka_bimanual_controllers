@@ -57,7 +57,9 @@ catkin_package(
 
 add_library(franka_bimanual_controllers
   src/bimanual_cartesian_impedance_controller.cpp
+  src/bimanual_cartesian_impedance_controller_with_learned_controller.cpp
 )
+
 
 add_dependencies(franka_bimanual_controllers
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
