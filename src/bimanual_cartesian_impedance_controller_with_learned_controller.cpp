@@ -309,7 +309,7 @@ void BiManualCartesianImpedanceControlWithLearnedController::learnedControllerCa
                             msg->data[learned_controller_dim_ - 1];
 
     // print some info
-      ROS_INFO_THROTTLE(1.0, "Received learned forces - Left: [%.2f, %.2f, %.2f] N, Right: [%.2f, %.2f, %.2f] N",
+      ROS_INFO_THROTTLE(0.3, "Received learned forces - Left: [%.2f, %.2f, %.2f] N, Right: [%.2f, %.2f, %.2f] N",
           learned_force_left_.x(), learned_force_left_.y(), learned_force_left_.z(),
           learned_force_right_.x(), learned_force_right_.y(), learned_force_right_.z());
     // debug return early for now
