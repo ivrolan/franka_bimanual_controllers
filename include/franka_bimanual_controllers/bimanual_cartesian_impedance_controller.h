@@ -193,6 +193,9 @@ class BiManualCartesianImpedanceControl
    ros::Publisher pub_force_torque_right;
    ros::Publisher pub_force_torque_left;
 
+   ros::Publisher pub_cartesian_wrench_task_right_;
+   ros::Publisher pub_cartesian_wrench_task_left_;
+
    double joint_limits[7][2];
 
    double calculateTauJointLimit(double q_value, double threshold, double magnitude, double upper_bound, double lower_bound);
