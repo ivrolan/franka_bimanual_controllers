@@ -197,6 +197,9 @@ class BiManualCartesianImpedanceControlWithLearnedController
    ros::Publisher pub_force_torque_right;
    ros::Publisher pub_force_torque_left;
 
+   ros::Publisher pub_cartesian_wrench_task_right_;
+   ros::Publisher pub_cartesian_wrench_task_left_;
+
    ros::Subscriber sub_learned_controller_;
    void learnedControllerCallback(const std_msgs::Float64MultiArray::ConstPtr& msg);
    Eigen::Vector3d learned_force_left_;

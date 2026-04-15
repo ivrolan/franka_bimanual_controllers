@@ -202,6 +202,9 @@ bool BiManualCartesianImpedanceControlWithLearnedController::init(hardware_inter
   pub_force_torque_right= node_handle.advertise<geometry_msgs::WrenchStamped>("/force_torque_right_ext",1);
   pub_force_torque_left= node_handle.advertise<geometry_msgs::WrenchStamped>("/force_torque_left_ext",1);
 
+  pub_cartesian_wrench_task_right_ = node_handle.advertise<geometry_msgs::WrenchStamped>("/cartesian_wrench_task_right", 1);
+  pub_cartesian_wrench_task_left_ = node_handle.advertise<geometry_msgs::WrenchStamped>("/cartesian_wrench_task_left", 1);
+
 
   dynamic_reconfigure_compliance_param_node_ =
       ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
@@ -464,9 +467,20 @@ void BiManualCartesianImpedanceControlWithLearnedController::updateArmLeft() {
   Eigen::Matrix<double, 6, 1> learned_wrench_left;
   learned_wrench_left.setZero();
   learned_wrench_left.head(3) << force_left_base;
-  tau_task << jacobian.transpose() * (-left_arm_data.cartesian_stiffness_ * error_left -
-                                      left_arm_data.cartesian_damping_ * (jacobian * dq) +
-                                      learned_wrench_left);
+  Eigen::Matrix<double, 6, 1> cartesian_wrench_task_left =
+      -left_arm_data.cartesian_stiffness_ * error_left -
+      left_arm_data.cartesian_damping_ * (jacobian * dq);
+  tau_task << jacobian.transpose() * (cartesian_wrench_task_left + learned_wrench_left);
+
+  geometry_msgs::WrenchStamped cartesian_wrench_task_left_msg;
+  cartesian_wrench_task_left_msg.header.stamp = ros::Time::now();
+  cartesian_wrench_task_left_msg.wrench.force.x = cartesian_wrench_task_left[0];
+  cartesian_wrench_task_left_msg.wrench.force.y = cartesian_wrench_task_left[1];
+  cartesian_wrench_task_left_msg.wrench.force.z = cartesian_wrench_task_left[2];
+  cartesian_wrench_task_left_msg.wrench.torque.x = cartesian_wrench_task_left[3];
+  cartesian_wrench_task_left_msg.wrench.torque.y = cartesian_wrench_task_left[4];
+  cartesian_wrench_task_left_msg.wrench.torque.z = cartesian_wrench_task_left[5];
+  pub_cartesian_wrench_task_left_.publish(cartesian_wrench_task_left_msg);
   // nullspace PD control with damping ratio = 1
   tau_nullspace_left << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
@@ -643,9 +657,20 @@ void BiManualCartesianImpedanceControlWithLearnedController::updateArmRight() {
   Eigen::Matrix<double, 6, 1> learned_wrench_right;
   learned_wrench_right.setZero();
   learned_wrench_right.head(3) << force_right_base;
-  tau_task << jacobian.transpose() * (-right_arm_data.cartesian_stiffness_ * error_right -
-                                      right_arm_data.cartesian_damping_ * (jacobian * dq) +
-                                      learned_wrench_right);
+  Eigen::Matrix<double, 6, 1> cartesian_wrench_task_right =
+      -right_arm_data.cartesian_stiffness_ * error_right -
+      right_arm_data.cartesian_damping_ * (jacobian * dq);
+  tau_task << jacobian.transpose() * (cartesian_wrench_task_right + learned_wrench_right);
+
+  geometry_msgs::WrenchStamped cartesian_wrench_task_right_msg;
+  cartesian_wrench_task_right_msg.header.stamp = ros::Time::now();
+  cartesian_wrench_task_right_msg.wrench.force.x = cartesian_wrench_task_right[0];
+  cartesian_wrench_task_right_msg.wrench.force.y = cartesian_wrench_task_right[1];
+  cartesian_wrench_task_right_msg.wrench.force.z = cartesian_wrench_task_right[2];
+  cartesian_wrench_task_right_msg.wrench.torque.x = cartesian_wrench_task_right[3];
+  cartesian_wrench_task_right_msg.wrench.torque.y = cartesian_wrench_task_right[4];
+  cartesian_wrench_task_right_msg.wrench.torque.z = cartesian_wrench_task_right[5];
+  pub_cartesian_wrench_task_right_.publish(cartesian_wrench_task_right_msg);
   // nullspace PD control with damping ratio = 1
   tau_nullspace_right << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
