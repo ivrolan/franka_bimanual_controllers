@@ -206,6 +206,8 @@ class BiManualCartesianImpedanceControlWithLearnedController
    Eigen::Vector3d learned_force_right_;
    int learned_controller_dim_{30};
    double learned_force_max_{20.0};  ///< [N] Maximum norm for learned controller forces
+   double learned_force_timeout_{0.5};  ///< [s] Zero learned forces if no message received within this window
+   ros::Time last_learned_force_time_;
 
    enum class LearnedForceFrame { ROBOT_BASE, END_EFFECTOR, WORLD };
    LearnedForceFrame learned_force_frame_{LearnedForceFrame::ROBOT_BASE};

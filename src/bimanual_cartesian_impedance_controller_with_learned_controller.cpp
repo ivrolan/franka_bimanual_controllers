@@ -150,12 +150,16 @@ bool BiManualCartesianImpedanceControlWithLearnedController::init(hardware_inter
 
   learned_force_left_.setZero();
   learned_force_right_.setZero();
+  last_learned_force_time_ = ros::Time(0);
   sub_learned_controller_ = node_handle.subscribe(
       "/learned_dlo_controller/dlo_control_commands", 20, &BiManualCartesianImpedanceControlWithLearnedController::learnedControllerCallback, this,
       ros::TransportHints().reliable().tcpNoDelay());
 
   node_handle.param<double>("learned_force_max", learned_force_max_, 20.0);
   ROS_INFO("Learned controller force norm limit: %.1f N", learned_force_max_);
+
+  node_handle.param<double>("learned_force_timeout", learned_force_timeout_, 0.5);
+  ROS_INFO("Learned controller force timeout: %.3f s", learned_force_timeout_);
 
   // Parse learned force reference frame: "robot_base", "end_effector", or "world"
   std::string learned_force_frame_str;
@@ -246,9 +250,16 @@ startingArmRight();
 
 void BiManualCartesianImpedanceControlWithLearnedController::update(const ros::Time& /*time*/,
                                                         const ros::Duration& /*period*/) {
-updateArmLeft();
-updateArmRight();
-
+  if (last_learned_force_time_.isZero() ||
+      (ros::Time::now() - last_learned_force_time_).toSec() > learned_force_timeout_) {
+    if (!learned_force_left_.isZero() || !learned_force_right_.isZero()) {
+      ROS_WARN_THROTTLE(1.0, "Learned forces stale (>%.3fs since last msg), zeroing.", learned_force_timeout_);
+    }
+    learned_force_left_.setZero();
+    learned_force_right_.setZero();
+  }
+  updateArmLeft();
+  updateArmRight();
 }
 
 void BiManualCartesianImpedanceControlWithLearnedController::startingArmLeft() {
@@ -310,6 +321,7 @@ void BiManualCartesianImpedanceControlWithLearnedController::learnedControllerCa
     learned_force_right_ << msg->data[learned_controller_dim_ - 3],
                             msg->data[learned_controller_dim_ - 2],
                             msg->data[learned_controller_dim_ - 1];
+    last_learned_force_time_ = ros::Time::now();
 
     // print some info
       ROS_INFO_THROTTLE(0.3, "Received learned forces - Left: [%.2f, %.2f, %.2f] N, Right: [%.2f, %.2f, %.2f] N",
