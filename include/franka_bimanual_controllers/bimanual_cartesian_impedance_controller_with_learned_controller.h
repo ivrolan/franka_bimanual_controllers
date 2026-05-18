@@ -199,12 +199,16 @@ class BiManualCartesianImpedanceControlWithLearnedController
 
    ros::Publisher pub_cartesian_wrench_task_right_;
    ros::Publisher pub_cartesian_wrench_task_left_;
+   
+   int decimation_factor_;
+   uint cartesian_right_publish_decimation_counter_;
+   uint cartesian_left_publish_decimation_counter_;
 
    ros::Subscriber sub_learned_controller_;
    void learnedControllerCallback(const std_msgs::Float64MultiArray::ConstPtr& msg);
    Eigen::Vector3d learned_force_left_;
    Eigen::Vector3d learned_force_right_;
-   int learned_controller_dim_{30};
+   int learned_controller_dim_{0};
    double learned_force_max_{20.0};  ///< [N] Maximum norm for learned controller forces
    double learned_force_timeout_{0.5};  ///< [s] Zero learned forces if no message received within this window
    ros::Time last_learned_force_time_;

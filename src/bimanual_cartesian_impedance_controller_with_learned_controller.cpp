@@ -152,18 +152,21 @@ bool BiManualCartesianImpedanceControlWithLearnedController::init(hardware_inter
   learned_force_right_.setZero();
   last_learned_force_time_ = ros::Time(0);
   sub_learned_controller_ = node_handle.subscribe(
-      "/learned_dlo_controller/dlo_control_commands", 20, &BiManualCartesianImpedanceControlWithLearnedController::learnedControllerCallback, this,
+      "/learned_dlo_controller/dlo_control_commands", 1, &BiManualCartesianImpedanceControlWithLearnedController::learnedControllerCallback, this,
       ros::TransportHints().reliable().tcpNoDelay());
 
   node_handle.param<double>("learned_force_max", learned_force_max_, 20.0);
+  node_handle.param<int>("learned_controller_dim", learned_controller_dim_, 36);
   ROS_INFO("Learned controller force norm limit: %.1f N", learned_force_max_);
 
   node_handle.param<double>("learned_force_timeout", learned_force_timeout_, 0.5);
   ROS_INFO("Learned controller force timeout: %.3f s", learned_force_timeout_);
 
+  ROS_INFO("Learned controller command dimension: %d", learned_controller_dim_);
+  
   // Parse learned force reference frame: "robot_base", "end_effector", or "world"
   std::string learned_force_frame_str;
-  node_handle.param<std::string>("learned_force_frame", learned_force_frame_str, "robot_base");
+  node_handle.param<std::string>("learned_force_frame", learned_force_frame_str, "base");
   if (learned_force_frame_str == "end_effector") {
     learned_force_frame_ = LearnedForceFrame::END_EFFECTOR;
     ROS_INFO("Learned controller forces defined in End Effector frame");
@@ -208,7 +211,9 @@ bool BiManualCartesianImpedanceControlWithLearnedController::init(hardware_inter
 
   pub_cartesian_wrench_task_right_ = node_handle.advertise<geometry_msgs::WrenchStamped>("/cartesian_wrench_task_right", 1);
   pub_cartesian_wrench_task_left_ = node_handle.advertise<geometry_msgs::WrenchStamped>("/cartesian_wrench_task_left", 1);
-
+  cartesian_right_publish_decimation_counter_ = 0;
+  cartesian_left_publish_decimation_counter_ = 0;  
+  node_handle.param<int>("cartesian_pub_decimation_factor", decimation_factor_, 10);
 
   dynamic_reconfigure_compliance_param_node_ =
       ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
@@ -484,15 +489,22 @@ void BiManualCartesianImpedanceControlWithLearnedController::updateArmLeft() {
       left_arm_data.cartesian_damping_ * (jacobian * dq);
   tau_task << jacobian.transpose() * (cartesian_wrench_task_left + learned_wrench_left);
 
-  geometry_msgs::WrenchStamped cartesian_wrench_task_left_msg;
-  cartesian_wrench_task_left_msg.header.stamp = ros::Time::now();
-  cartesian_wrench_task_left_msg.wrench.force.x = cartesian_wrench_task_left[0];
-  cartesian_wrench_task_left_msg.wrench.force.y = cartesian_wrench_task_left[1];
-  cartesian_wrench_task_left_msg.wrench.force.z = cartesian_wrench_task_left[2];
-  cartesian_wrench_task_left_msg.wrench.torque.x = cartesian_wrench_task_left[3];
-  cartesian_wrench_task_left_msg.wrench.torque.y = cartesian_wrench_task_left[4];
-  cartesian_wrench_task_left_msg.wrench.torque.z = cartesian_wrench_task_left[5];
-  pub_cartesian_wrench_task_left_.publish(cartesian_wrench_task_left_msg);
+  if (cartesian_left_publish_decimation_counter_++ >= decimation_factor_) {
+    geometry_msgs::WrenchStamped cartesian_wrench_task_left_msg;  
+    cartesian_wrench_task_left_msg.header.stamp = ros::Time::now();
+    cartesian_wrench_task_left_msg.header.frame_id = "base";
+    cartesian_wrench_task_left_msg.wrench.force.x = cartesian_wrench_task_left[0];
+    cartesian_wrench_task_left_msg.wrench.force.y = cartesian_wrench_task_left[1];
+    cartesian_wrench_task_left_msg.wrench.force.z = cartesian_wrench_task_left[2];
+    cartesian_wrench_task_left_msg.wrench.torque.x = cartesian_wrench_task_left[3];
+    cartesian_wrench_task_left_msg.wrench.torque.y = cartesian_wrench_task_left[4];
+    cartesian_wrench_task_left_msg.wrench.torque.z = cartesian_wrench_task_left[5];
+
+    pub_cartesian_wrench_task_left_.publish(cartesian_wrench_task_left_msg);
+
+    cartesian_left_publish_decimation_counter_ = 0;
+  }
+
   // nullspace PD control with damping ratio = 1
   tau_nullspace_left << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
@@ -674,15 +686,19 @@ void BiManualCartesianImpedanceControlWithLearnedController::updateArmRight() {
       right_arm_data.cartesian_damping_ * (jacobian * dq);
   tau_task << jacobian.transpose() * (cartesian_wrench_task_right + learned_wrench_right);
 
-  geometry_msgs::WrenchStamped cartesian_wrench_task_right_msg;
-  cartesian_wrench_task_right_msg.header.stamp = ros::Time::now();
-  cartesian_wrench_task_right_msg.wrench.force.x = cartesian_wrench_task_right[0];
-  cartesian_wrench_task_right_msg.wrench.force.y = cartesian_wrench_task_right[1];
-  cartesian_wrench_task_right_msg.wrench.force.z = cartesian_wrench_task_right[2];
-  cartesian_wrench_task_right_msg.wrench.torque.x = cartesian_wrench_task_right[3];
-  cartesian_wrench_task_right_msg.wrench.torque.y = cartesian_wrench_task_right[4];
-  cartesian_wrench_task_right_msg.wrench.torque.z = cartesian_wrench_task_right[5];
-  pub_cartesian_wrench_task_right_.publish(cartesian_wrench_task_right_msg);
+  if (cartesian_right_publish_decimation_counter_++ >= decimation_factor_) {
+    geometry_msgs::WrenchStamped cartesian_wrench_task_right_msg;
+    cartesian_wrench_task_right_msg.header.stamp = ros::Time::now();
+    cartesian_wrench_task_right_msg.header.frame_id = "base";
+    cartesian_wrench_task_right_msg.wrench.force.x = cartesian_wrench_task_right[0];
+    cartesian_wrench_task_right_msg.wrench.force.y = cartesian_wrench_task_right[1];
+    cartesian_wrench_task_right_msg.wrench.force.z = cartesian_wrench_task_right[2];
+    cartesian_wrench_task_right_msg.wrench.torque.x = cartesian_wrench_task_right[3];
+    cartesian_wrench_task_right_msg.wrench.torque.y = cartesian_wrench_task_right[4];
+    cartesian_wrench_task_right_msg.wrench.torque.z = cartesian_wrench_task_right[5];
+    pub_cartesian_wrench_task_right_.publish(cartesian_wrench_task_right_msg);
+    cartesian_right_publish_decimation_counter_ = 0;
+  }
   // nullspace PD control with damping ratio = 1
   tau_nullspace_right << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *

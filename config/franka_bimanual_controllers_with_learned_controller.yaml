@@ -21,4 +21,5 @@ bimanual_cartesian_impedance_controller:
             - panda_left_joint6
             - panda_left_joint7
     learned_force_max: 10.0
+    learned_controller_dim: 36
     learned_force_frame: "base"

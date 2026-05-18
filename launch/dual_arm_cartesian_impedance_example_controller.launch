@@ -34,9 +34,9 @@
     <param name="stop_at_shutdown" value="$(arg stop_at_shutdown)" />
     <rosparam command="load" file="$(find franka_gripper)/config/franka_gripper_node.yaml" />
     <rosparam param="joint_names" subst_value="true">$(arg joint_names_right)</rosparam>
-  </node>
+  </node> -->
 
-  <node name="$(arg robot_id_left)_franka_gripper" pkg="franka_gripper" type="franka_gripper_node" output="screen">
+  <!-- <node name="$(arg robot_id_left)_franka_gripper" pkg="franka_gripper" type="franka_gripper_node" output="screen">
     <param name="robot_ip" value="$(arg robot_left_ip)"/>
     <param name="stop_at_shutdown" value="$(arg stop_at_shutdown)" />
     <rosparam command="load" file="$(find franka_gripper)/config/franka_gripper_node.yaml" />

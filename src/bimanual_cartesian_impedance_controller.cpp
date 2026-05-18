@@ -381,6 +381,8 @@ void BiManualCartesianImpedanceControl::updateArmLeft() {
 
   geometry_msgs::WrenchStamped cartesian_wrench_task_left_msg;
   cartesian_wrench_task_left_msg.header.stamp = ros::Time::now();
+  cartesian_wrench_task_left_msg.header.frame_id = "base";
+
   cartesian_wrench_task_left_msg.wrench.force.x = cartesian_wrench_task_left[0];
   cartesian_wrench_task_left_msg.wrench.force.y = cartesian_wrench_task_left[1];
   cartesian_wrench_task_left_msg.wrench.force.z = cartesian_wrench_task_left[2];
@@ -556,6 +558,8 @@ void BiManualCartesianImpedanceControl::updateArmRight() {
 
   geometry_msgs::WrenchStamped cartesian_wrench_task_right_msg;
   cartesian_wrench_task_right_msg.header.stamp = ros::Time::now();
+  cartesian_wrench_task_right_msg.header.frame_id = "base";
+
   cartesian_wrench_task_right_msg.wrench.force.x = cartesian_wrench_task_right[0];
   cartesian_wrench_task_right_msg.wrench.force.y = cartesian_wrench_task_right[1];
   cartesian_wrench_task_right_msg.wrench.force.z = cartesian_wrench_task_right[2];
