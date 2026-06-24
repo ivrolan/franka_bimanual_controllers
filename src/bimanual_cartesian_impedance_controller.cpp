@@ -52,7 +52,7 @@ void BiManualCartesianImpedanceControl::loadModel() {
 double* BiManualCartesianImpedanceControl::get_fk(franka::RobotState robot_state, pinocchio::Model& model_pin, pinocchio::Data* data_pin, const std::string& frame_name)
 {
   // cout << "Getting the forward kinematics" << endl;
-  Eigen::Map<Eigen::Matrix<double, 9, 1>> q(robot_state.q.data());
+  Eigen::Map<Eigen::Matrix<double, 7, 1>> q(robot_state.q.data());
   Eigen::VectorXd q_vector = Eigen::VectorXd::Map(q.data(), q.size());
 
   pinocchio::forwardKinematics(model_pin, *data_pin, q_vector);
@@ -69,7 +69,7 @@ double* BiManualCartesianImpedanceControl::get_fk(franka::RobotState robot_state
 std::array<double, 42> BiManualCartesianImpedanceControl::get_jacobian(franka::RobotState robot_state, pinocchio::Model& model_pin, pinocchio::Data* data_pin, const std::string& frame_name)
 {
   // cout << "Getting the jacobian" << endl;
-  Eigen::Map<Eigen::Matrix<double, 9, 1>> q(robot_state.q.data());
+  Eigen::Map<Eigen::Matrix<double, 7, 1>> q(robot_state.q.data());
   Eigen::VectorXd q_vector = Eigen::VectorXd::Map(q.data(), q.size());
   Eigen::MatrixXd jacobian(6, model_pin.nv);  // 6xnv matrix for spatial Jacobian
   jacobian.fill(0);  // Initialize to zero
