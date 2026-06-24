@@ -132,73 +132,7 @@
     <parent link="panda_right_link7" />
     <child link="panda_right_link8" />
   </joint>
-  <joint name="panda_right_hand_joint" type="fixed">
-    <parent link="panda_right_link8" />
-    <child link="panda_right_hand" />
-    <origin rpy="0 0 -0.7853981633974483" xyz="0 0 0" />
-  </joint>
-  
-  <link name="panda_right_hand">
-    <visual>
-      <geometry>
-        <mesh filename="package://franka_description/meshes/visual/hand.dae" />
-      </geometry>
-    </visual>
-  </link>
-  <link name="panda_right_hand_tcp" />
-  <joint name="panda_right_hand_tcp_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0.1884" />
-    <parent link="panda_right_hand" />
-    <child link="panda_right_hand_tcp" />
-  </joint>
-  <link name="ball_right_link">
-    <visual>
-      <material name="red">
-        <color rgba="1 0 0 1" />
-      </material>
-
-      <geometry>
-        <sphere radius="0.005" />
-      </geometry>
-    </visual>
-  </link>
-
-  <joint name="ball_right_joint" type="fixed">
-    <origin rpy="0.0 0.0 0.0" xyz="0.0002309827402522288 -0.0004328828032887883 0.03240671849867958" />
-    <parent link="panda_right_hand_tcp" />
-    <child link="ball_right_link" />
-  </joint>
-  <link name="panda_right_leftfinger">
-    <visual>
-      <geometry>
-        <mesh filename="package://franka_description/meshes/visual/finger.dae" />
-      </geometry>
-    </visual>
-  </link>
-  <link name="panda_right_rightfinger">
-    <visual>
-      <origin rpy="0 0 3.141592653589793" xyz="0 0 0" />
-      <geometry>
-        <mesh filename="package://franka_description/meshes/visual/finger.dae" />
-      </geometry>
-    </visual>
-  </link>
-
-    <joint name="panda_right_finger_joint1" type="prismatic">
-    <parent link="panda_right_hand" />
-    <child link="panda_right_leftfinger" />
-    <origin rpy="0 0 0" xyz="0 0 0.0584" />
-    <axis xyz="0 1 0" />
-    <limit effort="100" lower="0.0" upper="0.04" velocity="0.2" />
-    <dynamics damping="0.3" />
-  </joint>
-  <joint name="panda_right_finger_joint2" type="prismatic">
-    <parent link="panda_right_hand" />
-    <child link="panda_right_rightfinger" />
-    <origin rpy="0 0 0" xyz="0 0 0.0584" />
-    <axis xyz="0 -1 0" />
-    <limit effort="100" lower="0.0" upper="0.04" velocity="0.2" />
-    <mimic joint="panda_right_finger_joint1" />
-    <dynamics damping="0.3" />
-  </joint>
+  <!-- Franka gripper (hand, fingers, TCP, calibration ball) removed:
+       custom setup has no gripper. A Bota F/T sensor is attached to link8.
+       The controlled TCP is panda_right_link8 (see frame_name_right param). -->
 </robot>
