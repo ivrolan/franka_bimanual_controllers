@@ -1,0 +1,274 @@
+// Copyright (c) 2019 Franka Emika GmbH
+// Use of this source code is governed by the Apache-2.0 license, see LICENSE
+#pragma once
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <controller_interface/multi_interface_controller.h>
+#include <dynamic_reconfigure/server.h>
+#include <geometry_msgs/PoseStamped.h>
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/Float64MultiArray.h"
+#include <geometry_msgs/WrenchStamped.h>
+#include <hardware_interface/joint_command_interface.h>
+#include <hardware_interface/robot_hw.h>
+#include <realtime_tools/realtime_publisher.h>
+#include <ros/node_handle.h>
+#include <ros/time.h>
+#include <Eigen/Dense>
+#include "sensor_msgs/JointState.h"
+
+#include <tf/transform_listener.h>
+
+#include <franka_bimanual_controllers/dual_arm_compliance_paramConfig.h>
+#include <franka_hw/franka_model_interface.h>
+#include <franka_hw/franka_state_interface.h>
+#include <franka_hw/trigger_rate.h>
+#include <ros/package.h>
+#include <pinocchio/multibody/model.hpp>
+#include <pinocchio/multibody/data.hpp>
+#define EIGEN_DONT_ALIGN_STATICALLY
+namespace franka_bimanual_controllers {
+
+/**
+ * This container holds all data and parameters used to control one panda arm with a Cartesian
+ * impedance control law tracking a desired target pose.
+ */
+struct FrankaDataContainer {
+  std::unique_ptr<franka_hw::FrankaStateHandle>
+      state_handle_;  ///< To read to complete robot state.
+  std::unique_ptr<franka_hw::FrankaModelHandle>
+      model_handle_;  ///< To have access to e.g. jacobians.
+  std::vector<hardware_interface::JointHandle> joint_handles_;  ///< To command joint torques.
+
+  double nullspace_stiffness_{20.0};  ///< [Nm/rad] To track the initial joint configuration in
+                                      ///< the nullspace of the Cartesian motion.
+
+  const double delta_tau_max_{1.0};          ///< [Nm/ms] Maximum difference in joint-torque per
+                                             ///< timestep. Used to saturated torque rates to ensure
+                                             ///< feasible commands.
+  Eigen::Matrix<double, 6, 6> cartesian_stiffness_;         ///< To track the target pose.
+
+  Eigen::Matrix<double, 6, 6> cartesian_damping_;           ///< To damp cartesian motions.
+
+  Eigen::Matrix<double, 7, 1> q_d_nullspace_;               ///< Target joint pose for nullspace
+
+                                                            ///< motion. For now we track the
+                                                            ///< initial joint pose.
+  Eigen::Vector3d position_d_;               ///< Target position of the end effector.
+  Eigen::Quaterniond orientation_d_;         ///< Target orientation of the end effector.
+
+  Eigen::Vector3d position_other_arm_;               ///< Target position of the end effector.
+//   Eigen::Vector3d position_d_relative_;
+
+//   Eigen::Matrix<double, 6, 6> cartesian_stiffness_relative_;         ///< To track the target pose.
+//   Eigen::Matrix<double, 6, 6> cartesian_damping_relative_;
+  Eigen::Matrix<double, 6, 1> force_torque;
+};
+
+/**
+ * Controller class for ros_control that renders two decoupled Cartesian impedances for the
+ * tracking of two target poses for the two endeffectors. The controller can be reparameterized at
+ * runtime via dynamic reconfigure servers.
+ *
+ * This variant additionally injects Cartesian forces produced by a learned DLO controller
+ * (subscribed on /learned_dlo_controller/dlo_control_commands) into the task wrench of each arm.
+ * It is the calibrated-kinematics (Pinocchio, no-gripper, link8 TCP) counterpart of the
+ * BiManualCartesianImpedanceControl controller.
+ */
+class BiManualCartesianImpedanceControlWithLearnedController
+    : public controller_interface::MultiInterfaceController<
+          franka_hw::FrankaModelInterface,
+          hardware_interface::EffortJointInterface,
+          franka_hw::FrankaStateInterface> {
+ public:
+  /**
+   * Initializes the controller class to be ready to run.
+   *
+   * @param[in] robot_hw Pointer to a RobotHW class to get interfaces and resource handles.
+   * @param[in] node_handle Nodehandle that allows getting parameterizations from the server and
+   * starting subscribers.
+   * @return True if the controller was initialized successfully, false otherwise.
+   */
+  bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& node_handle) override;
+
+  /**
+   * Prepares the controller for the real-time execution. This method is executed once every time
+   * the controller is started and runs in real-time.
+   */
+  void starting(const ros::Time&) override;
+
+  /**
+   * Computes the control-law and commands the resulting joint torques to the robot.
+   *
+   * @param[in] period The control period (here 0.001s).
+   */
+ private:
+  std::map<std::string, FrankaDataContainer>
+      arms_data_;             ///< Holds all relevant data for both arms.
+  std::string left_arm_id_;   ///< Name of the left arm, retrieved from the parameter server.
+  std::string right_arm_id_;  ///< Name of the right arm, retrieved from the parameter server.
+
+  ///< Transformation between base frames of the robots.
+  Eigen::Affine3d Ol_T_Or_;  // NOLINT (readability-identifier-naming)
+  ///< Target transformation between the two endeffectors.
+  Eigen::Affine3d EEr_T_EEl_;  // NOLINT (readability-identifier-naming)
+  ///< Transformation from the centering frame to the left end effector.
+  Eigen::Affine3d EEl_T_C_{};
+
+  ///< Publisher for the centering tracking frame of the coordinated motion.
+  realtime_tools::RealtimePublisher<geometry_msgs::PoseStamped> center_frame_pub_;
+  ///< Rate to trigger publishing the current pose of the centering frame.
+  franka_hw::TriggerRate publish_rate_;
+  Eigen::Matrix<float, 7, 1> stiff_;
+  double delta_lim;
+
+  // Define the variables for the external model
+    std::string urdf_path_left;
+    std::string urdf_path_right;
+    pinocchio::Model model_pin_left_;
+    pinocchio::Model model_pin_right_ ;
+    pinocchio::Data* data_pin_left_;
+    pinocchio::Data* data_pin_right_;
+    std::string frame_name_left_;
+    std::string frame_name_right_;
+    int frame_id_;
+
+    Eigen::Matrix3d R_left;
+    Eigen::Vector3d t_left;
+    Eigen::Matrix3d R_right;
+    Eigen::Vector3d t_right;
+    Eigen::Affine3d transform_base_to_left;
+    Eigen::Affine3d transform_base_to_right;
+    Eigen::Affine3d transform_left_to_base;
+    Eigen::Affine3d transform_right_to_base;
+
+
+  /**
+   * Saturates torque commands to ensure feasibility.
+   *
+   * @param[in] arm_data The data container of the arm.
+   * @param[in] tau_d_calculated The raw command according to the control law.
+   * @param[in] tau_J_d The current desired torque, read from the robot state.
+   * @return The saturated torque command for the 7 joints of one arm.
+   */
+  Eigen::Matrix<double, 7, 1> saturateTorqueRateLeft(
+      const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
+      const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
+  Eigen::Matrix<double, 7, 1> saturateTorqueRateRight(
+      const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
+      const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
+  /**
+   * Initializes a single Panda robot arm.
+   *
+   * @param[in] robot_hw A pointer the RobotHW class for getting interfaces and resource handles.
+   * @param[in] arm_id The name of the panda arm.
+   * @param[in] joint_names The names of all joints of the panda.
+   * @return True if successful, false otherwise.
+   */
+  bool initArm(hardware_interface::RobotHW* robot_hw,
+               const std::string& arm_id,
+               const std::vector<std::string>& joint_names);
+
+  /**
+   * Computes the decoupled controller update for a single arm.
+   *
+   * @param[in] arm_data The data container of the arm to control.
+   */
+  void updateArmLeft();
+  void updateArmRight();
+  /**
+   * Prepares all internal states to be ready to run the real-time control for one arm.
+   *
+   * @param[in] arm_data The data container of the arm to prepare for the control loop.
+   */
+  void startingArmLeft();
+  void startingArmRight();
+  ///< Dynamic reconfigure server
+  std::unique_ptr<dynamic_reconfigure::Server<
+      franka_combined_bimanual_controllers::dual_arm_compliance_paramConfig>>
+      dynamic_server_compliance_param_;
+
+  ///< Nodehandle for the dynamic reconfigure namespace
+  ros::NodeHandle dynamic_reconfigure_compliance_param_node_;
+
+  /**
+   * Callback for updates on the parameterization of the controller in terms of stiffnesses.
+   *
+   * @param[in] config Data container for configuration updates.
+   */
+  void complianceParamCallback(
+      franka_combined_bimanual_controllers::dual_arm_compliance_paramConfig& config,
+      uint32_t /*level*/);
+
+  ///< Target pose subscriber
+  ros::Subscriber sub_equilibrium_pose_right_;
+  void equilibriumPoseCallback_right(const geometry_msgs::PoseStampedConstPtr& msg);
+
+  ros::Subscriber sub_equilibrium_pose_right_global_frame_;
+  void equilibriumPoseCallback_right_global(const geometry_msgs::PoseStampedConstPtr& msg);
+
+  ros::Subscriber sub_equilibrium_pose_left_;
+  void equilibriumPoseCallback_left(const geometry_msgs::PoseStampedConstPtr& msg);
+
+  ros::Subscriber sub_equilibrium_pose_left_global_frame_;
+  void equilibriumPoseCallback_left_global(const geometry_msgs::PoseStampedConstPtr& msg);
+
+
+  ros::Subscriber sub_equilibrium_distance_;
+//   void equilibriumPoseCallback_relative(const geometry_msgs::PoseStampedConstPtr& msg);
+
+  ros::Subscriber sub_nullspace_right_;
+  void equilibriumConfigurationCallback_right(const sensor_msgs::JointState::ConstPtr& joint);
+
+  ros::Subscriber sub_nullspace_left_;
+  void equilibriumConfigurationCallback_left(const  sensor_msgs::JointState::ConstPtr&  joint);
+
+   ros::Publisher pub_right;
+   ros::Publisher pub_left;
+
+   ros::Publisher pub_right_global_frame;
+   ros::Publisher pub_left_global_frame;
+
+   ros::Publisher pub_force_torque_right;
+   ros::Publisher pub_force_torque_left;
+
+   ros::Publisher pub_cartesian_wrench_task_right_;
+   ros::Publisher pub_cartesian_wrench_task_left_;
+
+   int decimation_factor_;
+   uint cartesian_right_publish_decimation_counter_;
+   uint cartesian_left_publish_decimation_counter_;
+
+   // Learned DLO controller force injection
+   ros::Subscriber sub_learned_controller_;
+   void learnedControllerCallback(const std_msgs::Float64MultiArray::ConstPtr& msg);
+   Eigen::Vector3d learned_force_left_;
+   Eigen::Vector3d learned_force_right_;
+   int learned_controller_dim_{0};
+   double learned_force_max_{20.0};      ///< [N] Maximum norm for learned controller forces
+   double learned_force_timeout_{0.5};   ///< [s] Zero learned forces if no message within this window
+   ros::Time last_learned_force_time_;
+
+   enum class LearnedForceFrame { ROBOT_BASE, END_EFFECTOR, WORLD };
+   LearnedForceFrame learned_force_frame_{LearnedForceFrame::ROBOT_BASE};
+   Eigen::Matrix3d R_O_W_left_;   ///< Rotation from world frame to left robot base frame
+   Eigen::Matrix3d R_O_W_right_;  ///< Rotation from world frame to right robot base frame
+   tf::TransformListener tf_listener_;
+
+   double joint_limits[7][2];
+
+   double calculateTauJointLimit(double q_value, double threshold, double magnitude, double upper_bound, double lower_bound);
+
+    void update(const ros::Time&, const ros::Duration& period) override;
+    void loadModel();
+    /// Define a virtual class for the forward kinematics of lef and right
+    double* get_fk(franka::RobotState robot_state, pinocchio::Model& model_pin, pinocchio::Data* data_pin, const std::string& frame_name);
+    // Define a virtual class for the jacobian of lef and right
+    std::array<double, 42> get_jacobian(franka::RobotState robot_state, pinocchio::Model& model_pin, pinocchio::Data* data_pin, const std::string& frame_name);
+
+};
+
+}  // namespace franka_bimanual_controllers

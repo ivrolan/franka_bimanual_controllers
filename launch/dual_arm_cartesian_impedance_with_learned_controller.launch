@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="robot_right_ip"/>
+  <arg name="robot_left_ip"/>
+  <arg name="arm_id" default="panda"/>
+  <arg name="robot_id" default="panda_dual" />
+  <arg name="rviz" default="true" />
+  <arg name="rqt" default="true" />
+  <arg name="robot_id_right" value="panda_right" />
+  <arg name="robot_id_left" value="panda_left" />
+  <arg name="robot_ips" value="{panda_right/robot_ip: $(arg robot_right_ip),panda_left/robot_ip: $(arg robot_left_ip)}" />
+
+  <param name="frame_name_right" value="panda_right_link8"/>
+  <param name="frame_name_left" value="panda_left_link8"/>
+  <rosparam file="$(find franka_description)/robots/$(arg arm_id)/joint_limits.yaml" command="load"/>
+  <rosparam file="$(find franka_bimanual_controllers)/config/relative_position.yaml" command="load"/>
+
+  <include file="$(find franka_bimanual_controllers)/launch/franka_combined_control.launch" >
+    <arg name="robot_id" value="$(arg robot_id)" />
+    <arg name="robot_ips" value="$(arg robot_ips)" />
+  </include>
+
+  <group ns="$(arg robot_id)">
+    <rosparam command="load" file="$(find franka_bimanual_controllers)/config/franka_bimanual_controllers_with_learned_controller.yaml" />
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"  args="bimanual_cartesian_impedance_controller"/>
+    <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find franka_bimanual_controllers)/launch/rviz/franka_dual_description.rviz" if="$(arg rviz)"/>
+  </group>
+   <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" />
+
+  <!-- Franka gripper nodes removed: custom setup has no gripper (Bota F/T sensor on link8). -->
+</launch>

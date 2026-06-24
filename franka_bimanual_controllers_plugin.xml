@@ -4,4 +4,10 @@
           A controller that renders Cartesian impedance based tracking of separate target poses for 2 panda arms.
       </description>
   </class>
+  <class name="franka_bimanual_controllers/BiManualCartesianImpedanceControlWithLearnedController" type="franka_bimanual_controllers::BiManualCartesianImpedanceControlWithLearnedController" base_class_type="controller_interface::ControllerBase">
+      <description>
+          A Cartesian impedance controller for 2 panda arms that additionally injects Cartesian forces
+          from a learned DLO controller into each arm's task wrench.
+      </description>
+  </class>
 </library>
